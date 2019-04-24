@@ -1,0 +1,59 @@
+pipeline {
+    agent none
+
+    options {
+      timeout(time:30, unit: 'MINUTES')
+      buildDiscarder logRotator(numToKeepStr:'5')
+    }
+
+    stages {
+        stage("Unit Test") {
+	    agent {
+	      dockerfile {
+		filename 'test'
+		dir 'Dockerfiles'
+		args '-u root'
+	      }
+	    }
+
+            steps {
+              sh '''
+                pipenv install --dev
+                pipenv run test
+              '''
+            }
+
+	    post {
+		always {
+		    junit 'build/reports/unit-test.xml'
+		    cobertura coberturaReportFile: 'build/reports/coverage.xml'
+		}
+	    }
+        }
+
+        stage("Coverity Analysis") {
+	    agent {
+	      dockerfile {
+		filename 'coverity'
+		dir 'Dockerfiles'
+		args '-u root'
+	      }
+	    }
+
+            steps {
+                withCredentials(
+                    [[$class: 'UsernamePasswordMultiBinding',
+                      credentialsId: 'CoverityID',
+                      usernameVariable: 'CCUSER', passwordVariable:'CCPASS']]
+                ){
+		      sh '''
+			cov-build --dir /cov/imdir --no-command --fs-capture-search $WORKSPACE/raas
+			cov-analyze --dir /cov/imdir 
+			cov-commit-defects --dir /cov/imdir --host coverity.ci-swd.io --https-port 443 --user $CCUSER --password $CCPASS --stream honda-raas-robot-sdk-stream --info --debug
+		      '''
+                }
+            }
+        }
+    }
+
+}
