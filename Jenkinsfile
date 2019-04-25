@@ -1,29 +1,12 @@
 pipeline {
-    agent none
-
-    options {
-      timeout(time:30, unit: 'MINUTES')
-      buildDiscarder logRotator(numToKeepStr:'5')
+    agent {
+        docker { image 'node:7-alpine' }
     }
-
     stages {
-        stage("Hell0") {
-	    agent {
-	      dockerfile {
-		filename 'test'
-		dir 'Dockerfiles'
-		args '-u root'
-	      }
-	    }
-
+        stage('Test') {
             steps {
-              sh './test.sh'
+                sh 'node --version'
             }
-
-
         }
-
-  
     }
-
 }
